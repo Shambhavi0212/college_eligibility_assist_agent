@@ -1,0 +1,365 @@
+:root {
+  --bg: #e9eef7;
+  --surface: #ffffff;
+  --surface-2: #f4f8ff;
+  --ink: #1a2d4b;
+  --muted: #5f7390;
+  --accent: #2f5ea8;
+  --accent-2: #4a7bc7;
+  --danger: #b82727;
+  --line: #d7e0ef;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1624;
+  --surface: #161f31;
+  --surface-2: #1c2940;
+  --ink: #e5ecf8;
+  --muted: #a6b7d4;
+  --accent: #4a7bc7;
+  --accent-2: #6d96d6;
+  --danger: #ff8f8f;
+  --line: #2f3f5d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 85% 18%, #d8e5fd, var(--bg));
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] body {
+  background: radial-gradient(circle at 85% 18%, #1d2a45, var(--bg));
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: page-enter 0.45s ease-out;
+}
+
+.app-card {
+  width: min(1200px, 100%);
+  min-height: min(90vh, 860px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 1.4rem;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 0.9rem;
+  box-shadow: 0 22px 44px rgba(23, 43, 78, 0.14);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.theme-btn {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 700;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+
+.theme-btn:hover {
+  transform: translateY(-1px);
+  background: #dfe8f8;
+}
+
+:root[data-theme="dark"] .theme-btn:hover {
+  background: #243754;
+}
+
+.card-header h1 {
+  margin: 0;
+  font-size: 2.1rem;
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+}
+
+.card-header p {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+}
+
+.status-pill {
+  border-radius: 999px;
+  border: 1px solid #c5e2cd;
+  background: #eaf7ef;
+  color: #2a7f48;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+:root[data-theme="dark"] .status-pill {
+  border-color: #2f8558;
+  background: #193428;
+  color: #8be0af;
+}
+
+.messages {
+  min-height: 56vh;
+  max-height: 62vh;
+  overflow: auto;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f6f9ff 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  scroll-behavior: smooth;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+:root[data-theme="dark"] .messages {
+  background: linear-gradient(180deg, #1a2538 0%, #152033 100%);
+}
+
+.bubble {
+  max-width: 80%;
+  border-radius: 14px;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--line);
+  animation: bubble-enter 240ms ease both;
+  transition: transform 150ms ease, box-shadow 180ms ease;
+}
+
+.bubble:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(17, 35, 31, 0.08);
+}
+
+.bubble.assistant {
+  background: #f1f5fb;
+  border-color: #ccd8eb;
+  align-self: flex-start;
+}
+
+:root[data-theme="dark"] .bubble.assistant {
+  background: #1f2d45;
+  border-color: #324362;
+}
+
+.bubble.user {
+  background: #dce8fa;
+  border-color: #b7caea;
+  align-self: flex-end;
+}
+
+:root[data-theme="dark"] .bubble.user {
+  background: #233656;
+  border-color: #3b547f;
+}
+
+.role-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body li {
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.45rem 0;
+  font-size: 0.92rem;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid #bbceca;
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: #dce9e6;
+}
+
+.markdown-body strong {
+  color: #093f3c;
+}
+
+:root[data-theme="dark"] .markdown-body strong {
+  color: #9dc4ff;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.composer textarea {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  min-height: 62px;
+  padding: 0.85rem 0.9rem;
+  font: inherit;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.composer textarea:focus {
+  outline: none;
+  border-color: #85c8be;
+  box-shadow: 0 0 0 3px rgba(133, 200, 190, 0.2);
+}
+
+.composer button {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 0 1.2rem;
+  cursor: pointer;
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.composer button:hover:enabled {
+  transform: translateY(-1px);
+  background: #017f77;
+}
+
+.composer button:disabled {
+  background: #7ea9a4;
+  cursor: not-allowed;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.secondary-btn {
+  background: #eff3f9;
+  border-color: #ccd7eb;
+  color: #35547e;
+}
+
+:root[data-theme="dark"] .secondary-btn {
+  background: #1f2a40;
+  border-color: #344666;
+  color: #c7d7f4;
+}
+
+.secondary-btn:hover:enabled {
+  background: #e6edf8;
+}
+
+.error {
+  margin: 0;
+  color: var(--danger);
+  background: #ffeaea;
+  border: 1px solid #f2c3c3;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+}
+
+.pending {
+  opacity: 0.7;
+}
+
+@keyframes bubble-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 0.75rem;
+    align-items: stretch;
+  }
+
+  .app-card {
+    min-height: 92vh;
+    border-radius: 18px;
+    padding: 1rem;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: space-between;
+  }
+
+  .messages {
+    min-height: 58vh;
+    max-height: 63vh;
+  }
+
+  .bubble {
+    max-width: 96%;
+  }
+
+  .composer {
+    grid-template-columns: 1fr;
+  }
+
+  .composer button {
+    height: 2.6rem;
+  }
+
+  .composer-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
