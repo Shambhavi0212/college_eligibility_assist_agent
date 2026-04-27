@@ -1,0 +1,540 @@
+
+# def _parse_admission_steps(raw_steps):
+#     if raw_steps is None:
+#         return []
+
+#     if isinstance(raw_steps, list):
+#         return [str(step).strip() for step in raw_steps if str(step).strip()]
+
+#     if isinstance(raw_steps, str):
+#         text = raw_steps.strip()
+#         if not text:
+#             return []
+#         try:
+#             parsed = json.loads(text)
+#             if isinstance(parsed, list):
+#                 return [str(step).strip() for step in parsed if str(step).strip()]
+#         except json.JSONDecodeError:
+#             pass
+
+#         pieces = re.split(r"\n|\||;", text)
+#         return [piece.strip(" -") for piece in pieces if piece.strip(" -")]
+
+#     return [str(raw_steps).strip()]
+
+
+# def _build_checklist(row: dict):
+#     checklist = [
+#         "Verify you satisfy the minimum 10th/12th marks and stream criteria.",
+#         "Prepare required documents before application start date.",
+#         "Submit application before the deadline.",
+#         "Track counseling/admission notifications after submission.",
+#     ]
+
+#     checklist.extend(_parse_admission_steps(row.get("admission_steps")))
+
+#     deduped = []
+#     seen = set()
+#     for step in checklist:
+#         if step not in seen:
+#             deduped.append(step)
+#             seen.add(step)
+#     return deduped
+
+
+# def _is_missing_table_error(message: str, table_name: str) -> bool:
+#     normalized = (message or "").lower()
+#     return table_name.lower() in normalized and "doesn't exist" in normalized
+
+
+# def _normalized_exam_input(exam_name: str) -> str:
+#     return re.sub(r"\s+", " ", (exam_name or "").strip().lower())
+
+
+# def _stream_condition_and_params(stream: str):
+#     normalized = re.sub(r"\s+", " ", (stream or "").strip().lower())
+#     stream_aliases = {
+#         "mpc": ["%mpc%", "%pcm%"],
+#         "pcm": ["%pcm%", "%mpc%"],
+#     }
+
+#     aliases = stream_aliases.get(normalized)
+#     if aliases:
+#         return " AND (LOWER(ec.required_stream) LIKE %s OR LOWER(ec.required_stream) LIKE %s)", aliases
+
+#     return " AND LOWER(ec.required_stream) LIKE %s", [f"%{normalized}%"]
+
+
+# def _normalized_location_input(location: str) -> str:
+#     normalized = re.sub(r"\s+", " ", (location or "").strip().lower())
+#     typo_map = {
+#         "hyderbad": "hyderabad",
+#         "hyderabad city": "hyderabad",
+#         "chennau": "chennai",
+#         "chenai": "chennai",
+#         "banglore": "bangalore",
+#     }
+#     return typo_map.get(normalized, normalized)
+
+
+# def _split_filter_values(raw_value: str):
+#     if not raw_value:
+#         return []
+
+#     text = raw_value.strip().lower()
+#     # Normalize common separators used by conversational tool calls.
+#     text = re.sub(r"\s*(,|\+|/|\||&)\s*", ",", text)
+#     text = re.sub(r"\s+and\s+", ",", text)
+#     parts = [part.strip() for part in text.split(",") if part.strip()]
+
+#     # Preserve order while removing duplicates.
+#     seen = set()
+#     deduped = []
+#     for part in parts:
+#         if part not in seen:
+#             deduped.append(part)
+#             seen.add(part)
+#     return deduped
+
+
+# def _normalized_max_annual_fee(max_annual_fee: Optional[float]) -> Optional[float]:
+#     if max_annual_fee is None:
+#         return None
+
+#     fee = float(max_annual_fee)
+#     # Tool calls sometimes pass lakh values directly (e.g., 5 for 5 lakh).
+#     if 0 < fee <= 50:
+#         return fee * 100000
+#     return fee
+
+
+# def _multi_like_clause(column: str, raw_value: str, normalizer=None):
+#     values = _split_filter_values(raw_value)
+#     if normalizer:
+#         values = [normalizer(value) for value in values]
+#     values = [value for value in values if value]
+
+#     if not values:
+#         return "", []
+
+#     if len(values) == 1:
+#         return f" AND LOWER({column}) LIKE %s", [f"%{values[0]}%"]
+
+#     or_clause = " OR ".join([f"LOWER({column}) LIKE %s" for _ in values])
+#     return f" AND ({or_clause})", [f"%{value}%" for value in values]
+
+
+# def _exam_condition_and_params(exam_name: str):
+#     normalized = _normalized_exam_input(exam_name)
+
+#     none_exam_tokens = {
+#         "none",
+#         "no exam",
+#         "no entrance exam",
+#         "no external exam",
+#         "without exam",
+#     }
+#     management_tokens = {
+#         "management",
+#         "management quota",
+#         "direct admission",
+#         "direct",
+#     }
+
+#     if normalized in none_exam_tokens or normalized in management_tokens:
+#         return " AND (LOWER(ec.accepted_exams) LIKE %s OR LOWER(ec.accepted_exams) LIKE %s OR LOWER(ec.accepted_exams) LIKE %s)", [
+#             "%management%",
+#             "%direct%",
+#             "%no exam%",
+#         ]
+
+#     if not normalized:
+#         return "", []
+
+#     return " AND LOWER(ec.accepted_exams) LIKE %s", [f"%{normalized}%"]
+
+
+# def get_admissions_guidance_data(
+#     course_name: str,
+#     tenth_pct: float,
+#     twelfth_pct: float,
+#     stream: str,
+#     exam_name: str = "",
+#     category: str = "general",
+#     rank: Optional[int] = None,
+#     preferred_state: str = "",
+#     preferred_location: str = "",
+#     college_type: str = "",
+#     max_annual_fee: Optional[float] = None,
+#     limit: int = 5,
+# ):
+#     if not course_name or tenth_pct is None or twelfth_pct is None or not stream:
+#         return {
+#             "status": "error",
+#             "message": "Missing required inputs: course_name, tenth_pct, twelfth_pct, and stream are mandatory.",
+#             "results": [],
+#         }
+
+#     limit = max(1, min(int(limit), 10))
+#     category = (category or "general").strip().lower()
+#     normalized_fee = _normalized_max_annual_fee(max_annual_fee)
+#     stream_condition, stream_params = _stream_condition_and_params(stream)
+
+#     logistics_select = """
+#             al.application_start,
+#             al.application_end,
+#             al.required_docs,
+#             al.apply_link,
+#             al.admission_steps
+#     """
+
+#     logistics_join = """
+#         LEFT JOIN admissions_logistics al ON al.course_id = cr.course_id
+#     """
+
+#     exam_condition, exam_params = _exam_condition_and_params(exam_name)
+
+#     state_clause, state_params = _multi_like_clause("c.state", preferred_state)
+#     location_clause, location_params = _multi_like_clause("c.location", preferred_location, normalizer=_normalized_location_input)
+#     type_clause, type_params = _multi_like_clause("c.type", college_type)
+
+#     fee_clause = ""
+#     fee_params = []
+#     if normalized_fee is not None:
+#         fee_clause = " AND cr.annual_fee <= %s"
+#         fee_params.append(normalized_fee)
+
+#     rank_clause = ""
+#     rank_params = []
+#     if rank is not None:
+#         if category == "reserved":
+#             rank_clause = " AND (ec.cutoff_rank_reserved IS NULL OR %s <= ec.cutoff_rank_reserved)"
+#         else:
+#             rank_clause = " AND (ec.cutoff_rank_gen IS NULL OR %s <= ec.cutoff_rank_gen)"
+#         rank_params.append(int(rank))
+
+#     order_limit_clause = " ORDER BY c.nirf_ranking ASC, cr.annual_fee ASC LIMIT %s"
+
+#     sql = f"""
+#         SELECT
+#             c.name AS college_name,
+#             c.state,
+#             c.location,
+#             c.type AS college_type,
+#             c.college_tier,
+#             c.nirf_ranking,
+#             c.website_url,
+#             cr.course_name,
+#             cr.annual_fee,
+#             ec.min_10th_pct,
+#             ec.min_12th_pct,
+#             ec.required_stream,
+#             ec.accepted_exams,
+#             ec.cutoff_rank_gen,
+#             ec.cutoff_rank_reserved,
+# {logistics_select}
+#         FROM courses cr
+#         JOIN colleges c ON c.college_id = cr.college_id
+#         JOIN eligibility_criteria ec ON ec.course_id = cr.course_id
+# {logistics_join}
+#         WHERE cr.course_name LIKE %s
+#           AND ec.min_10th_pct <= %s
+#           AND ec.min_12th_pct <= %s
+# {stream_condition}
+# {exam_condition}
+# {state_clause}
+# {location_clause}
+# {type_clause}
+# {fee_clause}
+# {rank_clause}
+#     """
+
+#     base_params = [
+#         f"%{course_name}%",
+#         float(tenth_pct),
+#         float(twelfth_pct),
+#     ]
+#     base_params.extend(stream_params)
+
+#     full_params = (
+#         base_params
+#         + exam_params
+#         + state_params
+#         + location_params
+#         + type_params
+#         + fee_params
+#         + rank_params
+#         + [limit]
+#     )
+
+#     sql += order_limit_clause
+
+#     result = run_safe_select(sql, tuple(full_params))
+#     if result["status"] != "ok" and _is_missing_table_error(result.get("message", ""), "admissions_logistics"):
+#         fallback_select = """
+#             NULL AS application_start,
+#             NULL AS application_end,
+#             NULL AS required_docs,
+#             NULL AS apply_link,
+#             NULL AS admission_steps
+#         """
+#         fallback_sql = sql.replace(logistics_select, fallback_select).replace(logistics_join, "")
+#         result = run_safe_select(fallback_sql, tuple(full_params))
+
+#     # If strict exam filtering returns no rows, show closest matches by relaxing exam constraint.
+#     relaxed_exam_filter = False
+#     if result["status"] == "ok" and not result["rows"] and exam_condition:
+#         relaxed_exam_filter = True
+#         relaxed_sql = sql.replace(exam_condition, "")
+#         relaxed_params = (
+#             base_params
+#             + state_params
+#             + location_params
+#             + type_params
+#             + fee_params
+#             + rank_params
+#             + [limit]
+#         )
+#         result = run_safe_select(relaxed_sql, tuple(relaxed_params))
+
+#         if result["status"] != "ok" and _is_missing_table_error(result.get("message", ""), "admissions_logistics"):
+#             fallback_select = """
+#                 NULL AS application_start,
+#                 NULL AS application_end,
+#                 NULL AS required_docs,
+#                 NULL AS apply_link,
+#                 NULL AS admission_steps
+#             """
+#             fallback_relaxed_sql = relaxed_sql.replace(logistics_select, fallback_select).replace(logistics_join, "")
+#             result = run_safe_select(fallback_relaxed_sql, tuple(relaxed_params))
+
+#     # If still no rows, provide nearby alternatives by relaxing type, fee, and rank constraints.
+#     relaxed_constraints_filter = False
+#     if result["status"] == "ok" and not result["rows"]:
+#         relaxed_constraints_filter = True
+#         relaxed_sql_2 = sql
+#         if type_clause:
+#             relaxed_sql_2 = relaxed_sql_2.replace(type_clause, "")
+#         if fee_clause:
+#             relaxed_sql_2 = relaxed_sql_2.replace(fee_clause, "")
+#         if rank_clause:
+#             relaxed_sql_2 = relaxed_sql_2.replace(rank_clause, "")
+#         if exam_condition:
+#             relaxed_sql_2 = relaxed_sql_2.replace(exam_condition, "")
+
+#         relaxed_params_2 = base_params + state_params + location_params + [limit]
+#         result = run_safe_select(relaxed_sql_2, tuple(relaxed_params_2))
+
+#         if result["status"] != "ok" and _is_missing_table_error(result.get("message", ""), "admissions_logistics"):
+#             fallback_select = """
+#                 NULL AS application_start,
+#                 NULL AS application_end,
+#                 NULL AS required_docs,
+#                 NULL AS apply_link,
+#                 NULL AS admission_steps
+#             """
+#             fallback_relaxed_sql_2 = relaxed_sql_2.replace(logistics_select, fallback_select).replace(logistics_join, "")
+#             result = run_safe_select(fallback_relaxed_sql_2, tuple(relaxed_params_2))
+
+#     if result["status"] != "ok":
+#         return {
+#             "status": "error",
+#             "message": result["message"],
+#             "results": [],
+#         }
+
+#     formatted = []
+#     for row in result["rows"]:
+#         formatted.append(
+#             {
+#                 "college": {
+#                     "name": row.get("college_name"),
+#                     "state": row.get("state"),
+#                     "location": row.get("location"),
+#                     "type": row.get("college_type"),
+#                     "tier": row.get("college_tier"),
+#                     "nirf_ranking": row.get("nirf_ranking"),
+#                     "website": row.get("website_url"),
+#                 },
+#                 "course": {
+#                     "name": row.get("course_name"),
+#                     "annual_fee": row.get("annual_fee"),
+#                 },
+#                 "eligibility": {
+#                     "min_10th_pct": row.get("min_10th_pct"),
+#                     "min_12th_pct": row.get("min_12th_pct"),
+#                     "required_stream": row.get("required_stream"),
+#                     "accepted_exams": row.get("accepted_exams"),
+#                     "cutoff_rank_general": row.get("cutoff_rank_gen"),
+#                     "cutoff_rank_reserved": row.get("cutoff_rank_reserved"),
+#                 },
+#                 "admission": {
+#                     "application_start": row.get("application_start"),
+#                     "application_end": row.get("application_end"),
+#                     "required_documents": row.get("required_docs"),
+#                     "apply_link": row.get("apply_link"),
+#                 },
+#                 "checklist": _build_checklist(row),
+#             }
+#         )
+
+#     return {
+#         "status": "ok",
+#         "message": (
+#             "No exact matches found; showing closest options by relaxing fee/rank/type constraints."
+#             if formatted and relaxed_constraints_filter
+#             else (
+#                 "No exact exam-match colleges found; showing closest matches by relaxing exam constraint."
+#                 if formatted and relaxed_exam_filter
+#                 else ("No matching colleges found." if not formatted else "Success")
+#             )
+#         ),
+#         "results": formatted,
+#     }
+
+
+# def search_colleges_flexible_data(
+#     course_name: str = "",
+#     preferred_state: str = "",
+#     preferred_location: str = "",
+#     college_type: str = "",
+#     stream: str = "",
+#     exam_name: str = "",
+#     min_10th_pct: Optional[float] = None,
+#     min_12th_pct: Optional[float] = None,
+#     min_annual_fee: Optional[float] = None,
+#     max_annual_fee: Optional[float] = None,
+#     limit: int = 10,
+# ):
+#     limit = max(1, min(int(limit), 25))
+
+#     normalized_min_fee = _normalized_max_annual_fee(min_annual_fee)
+#     normalized_max_fee = _normalized_max_annual_fee(max_annual_fee)
+
+#     logistics_select = """
+#             al.application_start,
+#             al.application_end,
+#             al.required_docs,
+#             al.apply_link,
+#             al.admission_steps
+#     """
+
+#     logistics_join = """
+#         LEFT JOIN admissions_logistics al ON al.course_id = cr.course_id
+#     """
+
+#     sql = f"""
+#         SELECT
+#             c.name AS college_name,
+#             c.state,
+#             c.location,
+#             c.type AS college_type,
+#             c.college_tier,
+#             c.nirf_ranking,
+#             c.website_url,
+#             cr.course_name,
+#             cr.annual_fee,
+#             ec.min_10th_pct,
+#             ec.min_12th_pct,
+#             ec.required_stream,
+#             ec.accepted_exams,
+#             ec.cutoff_rank_gen,
+#             ec.cutoff_rank_reserved,
+# {logistics_select}
+#         FROM courses cr
+#         JOIN colleges c ON c.college_id = cr.college_id
+#         JOIN eligibility_criteria ec ON ec.course_id = cr.course_id
+# {logistics_join}
+#         WHERE 1=1
+#     """
+
+#     params = []
+
+#     if course_name:
+#         sql += " AND cr.course_name LIKE %s"
+#         params.append(f"%{course_name.strip()}%")
+
+#     state_clause, state_params = _multi_like_clause("c.state", preferred_state)
+#     location_clause, location_params = _multi_like_clause("c.location", preferred_location, normalizer=_normalized_location_input)
+#     type_clause, type_params = _multi_like_clause("c.type", college_type)
+
+#     sql += state_clause + location_clause + type_clause
+#     params.extend(state_params)
+#     params.extend(location_params)
+#     params.extend(type_params)
+
+#     if stream:
+#         stream_clause, stream_params = _stream_condition_and_params(stream)
+#         sql += stream_clause
+#         params.extend(stream_params)
+
+#     if exam_name:
+#         exam_clause, exam_params = _exam_condition_and_params(exam_name)
+#         sql += exam_clause
+#         params.extend(exam_params)
+
+#     if min_10th_pct is not None:
+#         sql += " AND ec.min_10th_pct <= %s"
+#         params.append(float(min_10th_pct))
+
+#     if min_12th_pct is not None:
+#         sql += " AND ec.min_12th_pct <= %s"
+#         params.append(float(min_12th_pct))
+
+#     if normalized_min_fee is not None:
+#         sql += " AND cr.annual_fee >= %s"
+#         params.append(float(normalized_min_fee))
+
+#     if normalized_max_fee is not None:
+#         sql += " AND cr.annual_fee <= %s"
+#         params.append(float(normalized_max_fee))
+
+#     sql += " ORDER BY c.nirf_ranking ASC, cr.annual_fee ASC LIMIT %s"
+#     params.append(limit)
+
+#     result = run_safe_select(sql, tuple(params))
+#     if result["status"] != "ok" and _is_missing_table_error(result.get("message", ""), "admissions_logistics"):
+#         fallback_select = """
+#             NULL AS application_start,
+#             NULL AS application_end,
+#             NULL AS required_docs,
+#             NULL AS apply_link,
+#             NULL AS admission_steps
+#         """
+#         fallback_sql = sql.replace(logistics_select, fallback_select).replace(logistics_join, "")
+#         result = run_safe_select(fallback_sql, tuple(params))
+
+#     if result["status"] != "ok":
+#         return {"status": "error", "message": result["message"], "results": []}
+
+#     formatted = []
+#     for row in result["rows"]:
+#         formatted.append(
+#             {
+#                 "college": {
+#                     "name": row.get("college_name"),
+#                     "state": row.get("state"),
+#                     "location": row.get("location"),
+#                     "type": row.get("college_type"),
+#                     "tier": row.get("college_tier"),
+#                     "nirf_ranking": row.get("nirf_ranking"),
+#                     "website": row.get("website_url"),
+#                 },
+#                 "course": {
+#                     "name": row.get("course_name"),
+#                     "annual_fee": row.get("annual_fee"),
+#                 },
+#                 "eligibility": {
+#                     "min_10th_pct": row.get("min_10th_pct"),
+#                     "min_12th_pct": row.get("min_12th_pct"),
+#                     "required_stream": row.get("required_stream"),
+#                     "accepted_exams": row.get("accepted_exams"),
+#                 },
+#             }
+#         )
+
+#     return {
+#         "status": "ok",
+#         "message": "No matching colleges found." if not formatted else "Success",
+#         "results": formatted,
+#     }
