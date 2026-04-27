@@ -26,6 +26,9 @@ class ChatResponse(BaseModel):
 
 app = FastAPI(title="College Eligibility Assistant API", version="2.0.0")
 
+MAX_CHAT_MESSAGES = 8
+MAX_MESSAGE_CHARS = 2000
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,14 +43,26 @@ def health_check():
     return {"status": "ok"}
 
 
+def _build_history(messages: List[ChatMessage]):
+    trimmed_messages = messages[-MAX_CHAT_MESSAGES:]
+    history = []
+
+    for message in trimmed_messages:
+        content = message.content.strip()
+        if len(content) > MAX_MESSAGE_CHARS:
+            content = content[:MAX_MESSAGE_CHARS]
+
+        history.append(HumanMessage(content=content) if message.role == "user" else AIMessage(content=content))
+
+    return history
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages cannot be empty")
 
-    history = []
-    for message in request.messages:
-        history.append(HumanMessage(content=message.content) if message.role == "user" else AIMessage(content=message.content))
+    history = _build_history(request.messages)
 
     try:
         response = get_agent().invoke({"messages": history})

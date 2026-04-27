@@ -60,6 +60,7 @@ DATABASE SCHEMA
 SQL RULES
 
 - Generate ONLY a single SELECT query.
+- Take limited number of rows like most relavent 10 rows using LIMIT
 - NEVER generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, or multiple statements.
 - Prefer parameterizable, safe filtering patterns with LIKE for user text input.
 - For stream matching, use flexible patterns and equivalent labels instead of exact string matches.
