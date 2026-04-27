@@ -6,19 +6,18 @@ from langchain_groq import ChatGroq
 try:
     from backend.core.config import settings, validate_settings
     from backend.core.prompt import SYSTEM_PROMPT
-    from backend.services.db_tools import admissions_guidance, sql_executor
+    from backend.services.db_tools import sql_executor
 except ModuleNotFoundError:
     from core.config import settings, validate_settings
     from core.prompt import SYSTEM_PROMPT
-    from services.db_tools import admissions_guidance, sql_executor
+    from services.db_tools import sql_executor
 
 try:
-    from backend.services.mcp_client import mcp_admissions_guidance, mcp_sql_executor
+    from backend.services.mcp_client import mcp_sql_executor
 except Exception:
     try:
-        from services.mcp_client import mcp_admissions_guidance, mcp_sql_executor
+        from services.mcp_client import mcp_sql_executor
     except Exception:
-        mcp_admissions_guidance = None
         mcp_sql_executor = None
 
 
@@ -33,9 +32,9 @@ def get_agent():
         groq_api_key=settings.groq_api_key,
     )
 
-    if settings.use_mcp and mcp_sql_executor and mcp_admissions_guidance:
-        tools = [mcp_sql_executor, mcp_admissions_guidance]
+    if settings.use_mcp and mcp_sql_executor:
+        tools = [mcp_sql_executor]
     else:
-        tools = [sql_executor, admissions_guidance]
+        tools = [sql_executor]
 
     return create_agent(llm, tools=tools, system_prompt=SYSTEM_PROMPT)

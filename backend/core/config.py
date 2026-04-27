@@ -44,3 +44,4 @@ def validate_settings() -> None:
         raise RuntimeError("Missing GROQ_API_KEY in .env")
     if not settings.groq_api_key.startswith("gsk_"):
         raise RuntimeError("Invalid GROQ_API_KEY format. Expected prefix: gsk_")
+0

@@ -72,36 +72,3 @@ client = MCPAdmissionsClient()
 def mcp_sql_executor(sql_query: str):
     """Execute read-only SQL through the MCP server."""
     return client.call_tool("execute_select", {"sql_query": sql_query})
-
-
-@tool
-def mcp_admissions_guidance(
-    course_name: str,
-    tenth_pct: float,
-    twelfth_pct: float,
-    stream: str,
-    exam_name: str,
-    category: str = "general",
-    rank: int = None,
-    preferred_state: str = "",
-    preferred_location: str = "",
-    max_annual_fee: float = None,
-    limit: int = 5,
-):
-    """Get deterministic admissions guidance through the MCP server."""
-    return client.call_tool(
-        "admissions_guidance",
-        {
-            "course_name": course_name,
-            "tenth_pct": tenth_pct,
-            "twelfth_pct": twelfth_pct,
-            "stream": stream,
-            "exam_name": exam_name,
-            "category": category,
-            "rank": rank,
-            "preferred_state": preferred_state,
-            "preferred_location": preferred_location,
-            "max_annual_fee": max_annual_fee,
-            "limit": limit,
-        },
-    )
